@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/features/catalog/product-card";
 import { productImageUrl } from "@/features/catalog/products";
+import { HeroCarousel } from "@/features/storefront/hero-carousel";
 import { SiteHeader } from "@/features/storefront/site-header";
 import { useShopSelector } from "@/store/provider";
 
@@ -36,22 +37,7 @@ export default function Storefront() {
     <>
       <SiteHeader />
       <main id="top">
-        <section className="hero">
-          <div className="hero-copy">
-            <span className="eyebrow">Made for your every day</span>
-            <h1 className="serif">
-              A little shine.
-              <br />A lot of you.
-            </h1>
-            <p>
-              Thoughtful pieces with a lasting glow. Meet the jewellery you’ll
-              reach for every morning.
-            </p>
-            <Link className="button" href="/shop">
-              Find your everyday
-            </Link>
-          </div>
-        </section>
+        <HeroCarousel />
         <section className="section" id="collections">
           <div className="section-head">
             <div>
@@ -115,34 +101,7 @@ export default function Storefront() {
             <p>Shipping across India, always tracked</p>
           </div>
         </section>
-        <section className="newsletter">
-          <span className="eyebrow">A note from us</span>
-          <h2 className="serif">Good things, occasionally.</h2>
-          <p>New pieces, little stories, and a treat for your first order.</p>
-          <form className="newsletter-form" action="/shop">
-            <input
-              type="email"
-              aria-label="Email address"
-              placeholder="Your email address"
-            />
-            <button type="submit">Explore ↗</button>
-          </form>
-        </section>
       </main>
-      <footer className="footer">
-        <div>
-          <strong className="brand">SIMPLE & UNIQUE</strong>
-          <p>Everyday, elevated.</p>
-        </div>
-        <div>
-          <Link href="/shop">Shop jewellery</Link>
-          <p>
-            <Link href="/admin">Admin dashboard</Link> ·{" "}
-            <Link href="/account/orders">Track an order</Link>
-          </p>
-        </div>
-        <div>© 2026 Simple & Unique</div>
-      </footer>
     </>
   );
 }

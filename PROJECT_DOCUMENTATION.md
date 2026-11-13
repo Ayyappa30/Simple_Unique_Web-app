@@ -123,6 +123,34 @@ Admins set the carrier and tracking number from the Orders table on `/admin`. Cl
 
 `POST /api/v1/admin/upload` (admin only, multipart `file`, JPG/PNG/WebP up to 5 MB) uploads to Cloudinary with a signed request and returns `{ data: { url } }`. The admin product form has an upload button that fills the image field. `productImageUrl()` serves Cloudinary URLs resized with `c_limit,w_<width>,q_auto,f_auto`. Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` in `.env` (the secret stays server-side).
 
+### Homepage banner carousel
+
+The homepage banner (`features/storefront/hero-carousel.tsx`) is an auto-advancing carousel of four slides, each with a photo, headline, text and a button. To change the slides, edit the `slides` list at the top of that file (photo ID, text, button label and link).
+
+- Advances every 6.5 seconds (the timing is the `heroProgress` animation in `app/globals.css`) and loops. A thin progress line under the active dot shows the time left.
+- Pauses while the pointer is over it, while a control has keyboard focus, and when the Pause button is pressed.
+- Previous and next buttons, clickable dots, left and right arrow keys, and swipe on touch screens.
+- Visitors who ask their device for reduced motion get no auto-advance and no animation; they can still use the controls.
+- Only the current and next slide's photo load up front, and hidden slides can't be tabbed into.
+
+### Footer, policy pages and newsletter
+
+Every page ends with a shared footer (`features/site/site-footer.tsx`, rendered from `app/layout.tsx`): a newsletter signup, link columns (About us, Need help, Discover), the legal links, a back-to-top button, and an India (₹ INR) and English locale line.
+
+Indian online stores must publish certain pages, and Razorpay checks for them. These exist at:
+
+| Page | Route |
+| --- | --- |
+| Terms & Conditions | `/terms` |
+| Privacy Policy | `/privacy` |
+| Shipping Policy | `/shipping` (uses the real shipping rules from `server/orders/pricing.ts`) |
+| Returns, Refund & Cancellation | `/returns` |
+| Contact and Grievance Officer | `/contact` (Consumer Protection (E-Commerce) Rules, 2020) |
+
+**Before launch:** open `features/site/site-config.ts`, replace every `[placeholder]` (legal name, address, support email and phone, Grievance Officer, delivery, return and refund times, jurisdiction, last-updated date, and social links), have the wording reviewed by a professional, then set `policiesReviewed` to `true` to remove the "Draft" banner from the policy pages. Empty social links hide their icons.
+
+Newsletter signups are stored in the `NewsletterSubscriber` table through `POST /api/v1/newsletter` (validated, lowercased, rate limited, and the same response for new and existing addresses). There is no unsubscribe flow or bulk-send tool yet.
+
 ### Account prompt
 
 The person icon in the header opens an accessible prompt with “Login now to avail best offers!” and a continue-as-guest link. It now links to sign in / create account, and shows a sign-out / dashboard menu once signed in.
@@ -228,6 +256,6 @@ npm run start
 - Implement customer sessions, registration/login, password hashing, OTP delivery, and authorization.
 - Protect admin routes and implement server-side catalog and order endpoints.
 - Add automatic refunds, then switch from `rzp_test_` to live keys after Razorpay approves the account.
-- Add SMS order notifications, saved customer addresses, shipping integrations, and verified reviews.
+- Add SMS order notifications, saved customer addresses, shipping integrations, verified reviews, and a newsletter unsubscribe flow.
 - Add production rate limiting, monitoring, backups, and deployment configuration.
 
