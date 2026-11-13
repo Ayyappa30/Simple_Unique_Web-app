@@ -1,9 +1,9 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SiteHeader } from "@/features/storefront/site-header";
 import { ProductCard } from "@/features/catalog/product-card";
+import { matchesSearch } from "@/features/catalog/products";
 import { useShopSelector } from "@/store/provider";
 
 const CATEGORY_OPTIONS = [
@@ -18,8 +18,10 @@ const MAX_PRICE = "5000";
 
 export function ShopPage({
   initialCategory,
+  initialSearch,
 }: {
   initialCategory?: string | string[];
+  initialSearch?: string | string[];
 }) {
   const products = useShopSelector((state) => state.products);
   const [category, setCategory] = useState(
@@ -28,7 +30,7 @@ export function ShopPage({
   const [material, setMaterial] = useState("all");
   const [availability, setAvailability] = useState("all");
   const [sort, setSort] = useState("popular");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(typeof initialSearch === "string" ? initialSearch.slice(0, 80) : "");
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const hasFilters =
     category !== "all" ||
@@ -53,9 +55,7 @@ export function ShopPage({
             ? product.stock > 0
             : product.stock <= 0)) &&
         product.price <= Number(maxPrice) &&
-        `${product.name} ${product.category} ${product.material}`
-          .toLowerCase()
-          .includes(search.toLowerCase().trim()),
+        matchesSearch(product, search),
     );
     if (sort === "price-low") items.sort((a, b) => a.price - b.price);
     if (sort === "price-high") items.sort((a, b) => b.price - a.price);
@@ -72,19 +72,15 @@ export function ShopPage({
             <span className="eyebrow">Made for the everyday</span>
             <h1 className="serif">Shop all pieces</h1>
           </div>
-          <span className="eyebrow">{filtered.length} pieces</span>
+          <span className="eyebrow">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</span>
         </div>
         <section className="shop-filters" aria-label="Filter products">
-          <label className="search-box">
-            <span className="visually-hidden">Search products</span>
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search hoops, gold plated, necklaces…"
-            />
-          </label>
+          {search.trim() && (
+            <p className="search-note" aria-live="polite">
+              Showing results for <strong>“{search.trim()}”</strong>
+              <button type="button" className="text-button" onClick={() => setSearch("")}>Clear</button>
+            </p>
+          )}
           <div className="chip-row" role="group" aria-label="Category">
             {CATEGORY_OPTIONS.map(([value, label]) => (
               <button

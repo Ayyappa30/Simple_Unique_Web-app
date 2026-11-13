@@ -6,8 +6,9 @@ export default function Page(props: PageProps<"/shop">) {
 }
 
 async function ShopContent({ searchParams }: Pick<PageProps<"/shop">, "searchParams">) {
-  const { category } = await searchParams;
-  return <ShopPage initialCategory={category}/>
+  const { category, q } = await searchParams;
+  // The key makes the page start over when the link changes (a new search, or another category from the menu).
+  return <ShopPage key={`${category ?? ""}|${q ?? ""}`} initialCategory={category} initialSearch={q}/>
 }
 
 function ShopLoading() {
