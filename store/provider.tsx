@@ -1,8 +1,25 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { initialShopState, persistedShopStateSchema, shopReducer, type ShopAction, type ShopState } from "@/features/shop/shop-slice";
+import { initialShopState, persistedShopStateSchema, setCatalog, shopReducer, type ShopAction, type ShopState } from "@/features/shop/shop-slice";
+import type { Product } from "@/features/catalog/products";
 import type { AppStore } from "@/store/store";
+
+const CATEGORIES: Product["category"][] = ["necklaces", "piercings", "bracelets", "earrings", "sets"];
+
+type ApiProduct = {
+  id: string; slug: string; name: string; description: string; category: string; priceInPaise: number;
+  mrpInPaise: number; material: string; stock: number; tag: string; createdAt: string; imageUrl: string | null;
+};
+
+function toProduct(item: ApiProduct): Product | null {
+  if (!item.imageUrl || !CATEGORIES.includes(item.category as Product["category"])) return null;
+  return {
+    id: item.id, slug: item.slug, name: item.name, category: item.category as Product["category"],
+    price: item.priceInPaise / 100, mrp: item.mrpInPaise / 100, image: item.imageUrl, material: item.material,
+    stock: item.stock, tag: item.tag, description: item.description, createdAt: item.createdAt.slice(0, 10),
+  };
+}
 
 type ShopContextValue = { state: ShopState; dispatch: (action: ShopAction) => void };
 const ShopContext = createContext<ShopContextValue | null>(null);
@@ -54,6 +71,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       };
       syncState();
       unsubscribe = store.subscribe(syncState);
+
+      // Load the live catalog from the database. If the API is unavailable, keep the local catalog.
+      // no-store skips the browser cache so admin changes show up on the next page load; the CDN still caches briefly.
+      fetch("/api/v1/products?limit=48&sort=newest", { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { data?: ApiProduct[] } | null) => {
+          if (!active || !body?.data?.length) return;
+          const products = body.data.flatMap((item) => toProduct(item) ?? []);
+          if (products.length) store.dispatch(setCatalog(products));
+        })
+        .catch(() => {});
     });
 
     return () => {

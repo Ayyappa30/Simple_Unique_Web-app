@@ -24,8 +24,20 @@ export const seedProducts: Product[] = [
   { id: "stacking-set", slug: "stacking-ring-set", name: "Stacking Ring Set", category: "sets", price: 1199, mrp: 1599, image: "photo-1605100804763-247f67b3557e", material: "Stainless Steel Anti-Tarnish", stock: 20, tag: "Gift pick", description: "Three slim stacking rings with a polished finish. Wear them together or mix and match.", createdAt: "2026-06-12" },
 ];
 
-export const productImageUrl = (id: string, width = 760) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=82`;
+export const productImageUrl = (id: string, width = 760) => {
+  // Uploaded images are full Cloudinary URLs: ask Cloudinary for a resized, optimised copy.
+  if (id.startsWith("https://res.cloudinary.com/")) {
+    return id.replace("/image/upload/", `/image/upload/c_limit,w_${width},q_auto,f_auto/`);
+  }
+  // Full Unsplash URLs (as stored in the database) just need the requested width.
+  if (id.startsWith("https://images.unsplash.com/")) {
+    const url = new URL(id);
+    url.searchParams.set("w", String(width));
+    url.searchParams.set("q", "82");
+    return url.toString();
+  }
+  return `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=82`;
+};
 
 export const formatPrice = (amount: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);

@@ -58,8 +58,10 @@ export type ShopAction =
   | Action<"shop/saveProduct", Product>
   | Action<"shop/deleteProduct", string>
   | Action<"shop/setOrderStatus", { id: string; status: Order["status"] }>
+  | Action<"shop/setCatalog", Product[]>
   | Action<"shop/restore", ShopState>;
 
+export const setCatalog = (products: Product[]): ShopAction => ({ type: "shop/setCatalog", payload: products });
 export const addToCart = (productId: string): ShopAction => ({ type: "shop/addToCart", payload: productId });
 export const setQuantity = (payload: { productId: string; quantity: number }): ShopAction => ({ type: "shop/setQuantity", payload });
 export const removeFromCart = (productId: string): ShopAction => ({ type: "shop/removeFromCart", payload: productId });
@@ -74,6 +76,19 @@ export function shopReducer(state: ShopState = initialShopState, action: Unknown
   switch (shopAction.type) {
     case "shop/restore":
       return shopAction.payload;
+    case "shop/setCatalog": {
+      // The database is the source of truth: drop cart/wishlist entries for products that no longer exist.
+      const products = shopAction.payload;
+      return {
+        ...state,
+        products,
+        wishlist: state.wishlist.filter((id) => products.some((product) => product.id === id)),
+        cart: state.cart.flatMap((item) => {
+          const product = products.find((entry) => entry.id === item.productId);
+          return product && product.stock > 0 ? [{ ...item, quantity: Math.min(item.quantity, product.stock) }] : [];
+        }),
+      };
+    }
     case "shop/addToCart": {
       const product = state.products.find((item) => item.id === shopAction.payload);
       if (!product || product.stock <= 0) return state;
