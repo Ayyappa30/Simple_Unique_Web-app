@@ -17,6 +17,6 @@ export function ProductCard({ product, eager = false }: { product: Product; eage
       <button className={`wishlist-toggle${saved ? " is-saved" : ""}`} aria-label={saved ? "Remove from wishlist" : "Add to wishlist"} onClick={() => dispatch(toggleWishlist(product.id))}><Heart size={17} fill={saved ? "currentColor" : "none"}/></button>
       <button className="quick-add" disabled={product.stock <= 0} onClick={() => dispatch(addToCart(product.id))}>{product.stock > 0 ? "Add to bag +" : "Sold out"}</button>
     </div>
-    <div className="product-info"><div><Link href={`/products/${product.slug}`} className="product-name">{product.name}</Link><p style={{ color: "#8b887f", marginTop: 6, fontSize: 10 }}>{product.material}</p></div><span className="product-price">{formatPrice(product.price)}</span></div>
+    <div className="product-info"><div><Link href={`/products/${product.slug}`} className="product-name">{product.name}</Link><p className="product-material">{product.material}</p></div><span className="product-price">{formatPrice(product.price)}</span></div>
   </article>;
 }
