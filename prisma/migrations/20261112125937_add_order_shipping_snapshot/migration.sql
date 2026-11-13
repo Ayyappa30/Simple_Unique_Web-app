@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "shipCity" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "shipPincode" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "shipState" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "shipStreet" TEXT NOT NULL DEFAULT '';

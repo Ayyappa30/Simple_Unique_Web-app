@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../server/auth/password";
 
 const prisma = new PrismaClient();
 
@@ -117,6 +118,20 @@ async function main() {
       });
     }
   }, { maxWait: 10_000, timeout: 30_000 });
+
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (adminEmail && adminPassword) {
+    // Create-only: never resets an existing admin's password or demotes/promotes other users.
+    await prisma.user.upsert({
+      where: { email: adminEmail },
+      create: { name: "Store Admin", email: adminEmail, passwordHash: await hashPassword(adminPassword), role: "ADMIN" },
+      update: {},
+    });
+    console.info(`Admin account ensured for ${adminEmail}.`);
+  } else {
+    console.info("ADMIN_EMAIL / ADMIN_PASSWORD not set: skipped admin account.");
+  }
 
   console.info(`Catalog seed complete: checked ${categories.length} categories and ${products.length} products.`);
 }

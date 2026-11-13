@@ -172,3 +172,18 @@ button { font: inherit; }
 @media(max-width:800px) { .nav-links { display:none; } .hero { min-height:500px; background-position:58% center; } .category-grid,.products-grid { grid-template-columns:repeat(2,1fr); } .category-card { height:220px; } .product-image { height:clamp(190px,52vw,300px); } .section { padding-top:62px; padding-bottom:62px; } }
 @media(max-width:800px) { .shop-toolbar { grid-template-columns:repeat(3,1fr); } .shop-toolbar .search-field { grid-column:span 3; } .pdp { grid-template-columns:1fr; } .pdp-image { min-height:0; height:min(115vw,650px); } .pdp-copy { max-width:none; } .checkout-layout { grid-template-columns:1fr; } .order-summary { position:static; } .admin-metrics { grid-template-columns:repeat(2,1fr); } }
 @media(max-width:480px) { .site-header { height:66px; padding:0 12px; } .brand { font-size:15px; } .header-actions { gap:3px; } .header-actions .icon-button { padding:5px; } .hero { min-height:470px; } .hero-copy { padding:58px 25px; } .section h2 { font-size:30px; } .section-head { align-items:start; gap:12px; } .section-head p { text-align:right; max-width:130px; } .category-grid { gap:10px; } .category-card { height:180px; } .products-grid { gap:12px; } .product-info { font-size:11px; } .benefits { grid-template-columns:1fr; gap:27px; } .footer { display:block; text-align:center; } .shop-toolbar { grid-template-columns:repeat(2,1fr); padding:12px; gap:10px; } .shop-toolbar .search-field { grid-column:span 2; } .shop-page h1,.checkout-layout h1,.admin-page h1 { font-size:34px; } .cart-item { grid-template-columns:78px 1fr auto; gap:12px; } .cart-thumb { height:100px; } .form-grid,.admin-form { grid-template-columns:1fr; } .span-two { grid-column:auto; } .payment-choice label { flex-wrap:wrap; } .payment-choice label small { margin-left:27px; width:100%; } .history-row { grid-template-columns:1fr auto; row-gap:10px; } .history-row > strong { grid-column:2; } .admin-metrics { gap:9px; } .admin-metrics div { padding:12px; } .admin-metrics strong { font-size:19px; } .account-modal { padding:38px 24px 28px; } .account-modal h2 { font-size:29px; } }
+
+/* Auth */
+.auth-page { display:grid; place-items:center; padding-top:48px; padding-bottom:72px; }
+.auth-card { width:min(100%,420px); display:flex; flex-direction:column; gap:16px; padding:38px 34px; background:#f8f6f2; box-shadow:0 12px 40px rgba(0,0,0,.08); text-align:center; }
+.auth-card h1 { font-size:34px; font-weight:400; margin:0 0 6px; }
+.auth-card label { display:flex; flex-direction:column; gap:6px; text-align:left; font-size:12px; letter-spacing:.04em; }
+.auth-card input { padding:12px; border:1px solid #cfc9bf; background:#fff; font:inherit; font-size:14px; }
+.auth-card .button { width:100%; margin:0; }
+.auth-card .text-button { margin:0; }
+.error-message { color:#a3261f; font-size:12px; margin:0; text-align:left; }
+
+/* Admin order tracking */
+.admin-table td form { display:flex; flex-direction:column; gap:6px; min-width:150px; }
+.admin-table td form input { padding:6px 8px; border:1px solid #cfc9bf; background:#fff; font:inherit; font-size:12px; }
+.admin-table td form .text-button { align-self:flex-start; margin:0; }
