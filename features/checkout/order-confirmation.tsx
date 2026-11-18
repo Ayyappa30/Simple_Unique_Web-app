@@ -76,6 +76,15 @@ export function OrderConfirmation({ id }: { id: string }) {
         <div className="summary-line"><span>Total</span><strong>{formatPrice(order.totalInPaise / 100)}</strong></div>
       </div>
       <p>Delivery to {order.shipping.street}, {order.shipping.city}, {order.shipping.state} {order.shipping.pincode}</p>
+      {(order.status === "RETURNING" || order.status === "RETURNED") && <p>The courier couldn’t deliver this order, so it {order.status === "RETURNING" ? "is on its way back to us" : "has come back to us"}. Contact us and we’ll sort it out with you.</p>}
+      {order.shipment.events.length > 0 && <section className="delivery-updates" aria-labelledby="delivery-updates-title">
+        <h2 className="serif" id="delivery-updates-title">Delivery updates</h2>
+        <ol>{order.shipment.events.map((event) => <li key={`${event.at}|${event.status}|${event.activity ?? ""}`}>
+          <strong>{(event.activity ?? event.status).slice(0, 140)}</strong>
+          <small>{[event.location, new Date(event.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })].filter(Boolean).join(" · ")}</small>
+        </li>)}</ol>
+        {order.shipment.trackUrl && <a className="track-link" href={order.shipment.trackUrl} target="_blank" rel="noopener noreferrer">Track on the courier’s page</a>}
+      </section>}
       {awaitingPayment && <button className="button dark" type="button" disabled={paying} onClick={() => payNow(order)}>{paying ? "Opening payment…" : `Pay ${formatPrice(order.totalInPaise / 100)} now`}</button>}
       {payMessage && <p className="form-error" role="alert">{payMessage}</p>}
     </>}

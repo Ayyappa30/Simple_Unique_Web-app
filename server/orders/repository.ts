@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { Prisma, type OrderStatus } from "@prisma/client";
 import { prisma } from "@/server/db/prisma";
+import { FINISHED } from "@/server/shipping/status";
 import { priceOrder } from "./pricing";
 
 export class OrderError extends Error {
@@ -28,6 +29,17 @@ const orderSelect = {
   totalInPaise: true,
   trackingNumber: true,
   carrier: true,
+  shiprocketShipmentId: true,
+  labelUrl: true,
+  trackUrl: true,
+  shipmentStatus: true,
+  shipmentError: true,
+  shippedAt: true,
+  deliveredAt: true,
+  returnedAt: true,
+  codCollectedAt: true,
+  codRemittedAt: true,
+  shipmentEvents: { select: { status: true, activity: true, location: true, occurredAt: true }, orderBy: { occurredAt: "desc" as const }, take: 25 },
   createdAt: true,
   items: {
     select: { id: true, productId: true, quantity: true, unitPriceInPaise: true, product: { select: { name: true, slug: true } } },
@@ -37,7 +49,8 @@ const orderSelect = {
 
 type OrderRecord = Prisma.OrderGetPayload<{ select: typeof orderSelect }>;
 
-export function toOrderView(order: OrderRecord) {
+/** `admin` adds the courier label, booking errors and cash-collection dates, which customers must never see. */
+export function toOrderView(order: OrderRecord, admin = false) {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -52,6 +65,18 @@ export function toOrderView(order: OrderRecord) {
     totalInPaise: order.totalInPaise,
     trackingNumber: order.trackingNumber,
     carrier: order.carrier,
+    shipment: {
+      status: order.shipmentStatus,
+      // Shiprocket's public tracking page, used when the courier's own link isn't known.
+      trackUrl: order.trackUrl ?? (order.shiprocketShipmentId && order.trackingNumber ? `https://shiprocket.co/tracking/${encodeURIComponent(order.trackingNumber)}` : null),
+      shippedAt: order.shippedAt?.toISOString() ?? null,
+      deliveredAt: order.deliveredAt?.toISOString() ?? null,
+      returnedAt: order.returnedAt?.toISOString() ?? null,
+      events: order.shipmentEvents.map((event) => ({ status: event.status, activity: event.activity, location: event.location, at: event.occurredAt.toISOString() })),
+      admin: admin
+        ? { booked: Boolean(order.shiprocketShipmentId), labelUrl: order.labelUrl, error: order.shipmentError, codCollectedAt: order.codCollectedAt?.toISOString() ?? null, codRemittedAt: order.codRemittedAt?.toISOString() ?? null }
+        : undefined,
+    },
     createdAt: order.createdAt.toISOString(),
     items: order.items.map((item) => ({
       productId: item.productId,
@@ -147,12 +172,17 @@ export const ordersRepository = {
     if (numbers.length) or.push({ orderNumber: { in: numbers } });
     if (!or.length) return [];
     const orders = await prisma.order.findMany({ where: { OR: or }, orderBy: { createdAt: "desc" }, take: 50, select: orderSelect });
-    return orders.map(toOrderView);
+    return orders.map((order) => toOrderView(order));
+  },
+
+  async findForAdmin(id: string) {
+    const order = await prisma.order.findUnique({ where: { id }, select: orderSelect });
+    return order ? toOrderView(order, true) : null;
   },
 
   async listAll(status?: OrderStatus) {
     const orders = await prisma.order.findMany({ where: status ? { status } : {}, orderBy: { createdAt: "desc" }, take: 200, select: orderSelect });
-    return orders.map(toOrderView);
+    return orders.map((order) => toOrderView(order, true));
   },
 
   async attachRazorpayOrder(id: string, razorpayOrderId: string) {
@@ -204,9 +234,9 @@ export const ordersRepository = {
     });
   },
 
-  async update(id: string, input: { status?: OrderStatus; trackingNumber?: string; carrier?: string }) {
+  async update(id: string, input: { status?: OrderStatus; trackingNumber?: string; carrier?: string; codRemitted?: boolean }) {
     return prisma.$transaction(async (tx) => {
-      const existing = await tx.order.findUnique({ where: { id }, select: { id: true, status: true, paymentMethod: true, paymentStatus: true, trackingNumber: true, items: { select: { productId: true, quantity: true } } } });
+      const existing = await tx.order.findUnique({ where: { id }, select: { id: true, status: true, paymentMethod: true, paymentStatus: true, trackingNumber: true, shiprocketShipmentId: true, codCollectedAt: true, items: { select: { productId: true, quantity: true } } } });
       if (!existing) throw new OrderError("Order not found.", 404);
 
       // An empty string clears the field.
@@ -214,23 +244,37 @@ export const ordersRepository = {
         trackingNumber: input.trackingNumber === undefined ? undefined : input.trackingNumber || null,
         carrier: input.carrier === undefined ? undefined : input.carrier || null,
       };
+      if (input.codRemitted !== undefined) {
+        // Marking that the courier has paid the collected cash into your bank account.
+        if (existing.paymentMethod !== "cod" || !existing.codCollectedAt) throw new OrderError("Cash can only be marked as received for a cash-on-delivery order that has been delivered.", 409);
+        data.codRemittedAt = input.codRemitted ? new Date() : null;
+      }
       if (input.status && input.status !== existing.status) {
-        if (existing.status === "CANCELLED" || existing.status === "DELIVERED") {
+        if (FINISHED.includes(existing.status)) {
           throw new OrderError(`A ${existing.status.toLowerCase()} order can't be changed.`, 409);
+        }
+        // Once the courier has the parcel it can't be called off. It will either be delivered or come back (RTO).
+        if (input.status === "CANCELLED" && existing.shiprocketShipmentId && (existing.status === "SHIPPED" || existing.status === "RETURNING")) {
+          throw new OrderError("The courier already has this parcel, so it can't be cancelled. It will be delivered or returned to you.", 409);
         }
         // An online order that hasn't been paid yet must not be packed or shipped.
         if (existing.paymentMethod === "razorpay" && existing.paymentStatus !== "PAID" && input.status !== "CANCELLED" && input.status !== "PENDING") {
           throw new OrderError("This order is waiting for online payment. You can only cancel it until it is paid.", 409);
         }
         data.status = input.status;
-        if (input.status === "CANCELLED") {
-          // Put the reserved stock back exactly once (the guard above stops a second cancel).
+        if (input.status === "CANCELLED" || input.status === "RETURNED") {
+          // Put the reserved stock back exactly once (the guard above stops a second cancel or return).
           for (const item of existing.items) await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
         }
-        // Cash on delivery is collected when the order is delivered (online orders are already paid).
-        if (input.status === "DELIVERED" && existing.paymentMethod === "cod") data.paymentStatus = "PAID";
+        if (input.status === "SHIPPED") data.shippedAt = new Date();
+        if (input.status === "RETURNED") data.returnedAt = new Date();
+        if (input.status === "DELIVERED") {
+          data.deliveredAt = new Date();
+          // Cash on delivery is collected when the order is delivered (online orders are already paid).
+          if (existing.paymentMethod === "cod") { data.paymentStatus = "PAID"; data.codCollectedAt = new Date(); }
+        }
       }
-      const order = toOrderView(await tx.order.update({ where: { id }, data, select: orderSelect }));
+      const order = toOrderView(await tx.order.update({ where: { id }, data, select: orderSelect }), true);
       return { order, previousStatus: existing.status, previousTracking: existing.trackingNumber };
     });
   },

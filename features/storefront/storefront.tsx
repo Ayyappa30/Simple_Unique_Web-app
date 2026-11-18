@@ -31,6 +31,20 @@ const categories = [
   },
 ];
 
+// Edit these to change the home page offer and the feedback cards. Replace the sample feedback with real customer words.
+const offer = {
+  eyebrow: "Our little offer",
+  title: "Free shipping on orders over ₹1,499",
+  text: "Pick a few favourites and we will deliver them to your door, tracked all the way.",
+  cta: "Shop the collection",
+  href: "/shop",
+};
+const feedback = [
+  { quote: "Wore it for weeks, in the shower too, and it still looks brand new.", name: "Sample customer", place: "Chennai" },
+  { quote: "Beautifully packed and it arrived quickly. A perfect little gift.", name: "Sample customer", place: "Bengaluru" },
+  { quote: "Light, simple and goes with everything. I keep coming back for more.", name: "Sample customer", place: "Hyderabad" },
+];
+
 export default function Storefront() {
   const products = useShopSelector((state) => state.products);
   return (
@@ -85,6 +99,29 @@ export default function Storefront() {
                   eager={index === 0}
                 />
               ))}
+          </div>
+        </section>
+        <section className="offer-banner" aria-label="Current offer">
+          <span className="eyebrow">{offer.eyebrow}</span>
+          <h2 className="serif">{offer.title}</h2>
+          <p>{offer.text}</p>
+          <Link className="button" href={offer.href}>{offer.cta}</Link>
+        </section>
+        <section className="section feedback" id="feedback">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Kind words</span>
+              <h2 className="serif">What our customers say</h2>
+            </div>
+          </div>
+          <div className="feedback-grid">
+            {feedback.map((item, index) => (
+              <figure className="feedback-card" key={index}>
+                <div className="feedback-stars" aria-label="5 out of 5 stars">★★★★★</div>
+                <blockquote>“{item.quote}”</blockquote>
+                <figcaption><strong>{item.name}</strong> · {item.place}</figcaption>
+              </figure>
+            ))}
           </div>
         </section>
         <section className="benefits" id="about">

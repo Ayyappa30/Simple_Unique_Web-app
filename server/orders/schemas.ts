@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INDIAN_STATES } from "./indian-states";
 
 export const placeOrderSchema = z.object({
   customer: z.object({
@@ -9,7 +10,7 @@ export const placeOrderSchema = z.object({
   address: z.object({
     street: z.string().trim().min(8, "Enter your complete street address").max(200),
     city: z.string().trim().min(2, "Enter your city").max(80),
-    state: z.string().trim().min(2, "Enter your state").max(80),
+    state: z.enum(INDIAN_STATES, { message: "Choose your state" }),
     pincode: z.string().regex(/^[1-9][0-9]{5}$/, "Enter a valid 6-digit PIN code"),
   }),
   items: z.array(z.object({ productId: z.string().min(1).max(64), quantity: z.number().int().min(1).max(20) })).min(1).max(50),
@@ -17,13 +18,14 @@ export const placeOrderSchema = z.object({
   paymentMethod: z.enum(["cod", "razorpay"]).default("cod"),
 });
 
-export const orderStatusSchema = z.enum(["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"]);
+export const orderStatusSchema = z.enum(["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNING", "RETURNED"]);
 
 export const updateOrderSchema = z
   .object({
     status: orderStatusSchema,
     trackingNumber: z.string().trim().max(80),
     carrier: z.string().trim().max(80),
+    codRemitted: z.boolean(),
   })
   .partial()
   .refine((value) => Object.keys(value).length > 0, { message: "Nothing to update." });

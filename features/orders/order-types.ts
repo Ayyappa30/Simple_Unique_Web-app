@@ -1,4 +1,15 @@
-export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "RETURNING" | "RETURNED";
+
+/** Courier tracking. `admin` is only present in admin responses. */
+export type ApiShipment = {
+  status: string | null;
+  trackUrl: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  returnedAt: string | null;
+  events: { status: string; activity: string | null; location: string | null; at: string }[];
+  admin?: { booked: boolean; labelUrl: string | null; error: string | null; codCollectedAt: string | null; codRemittedAt: string | null };
+};
 
 /** Shape returned by the orders API (amounts in paise). */
 export type ApiOrder = {
@@ -15,11 +26,13 @@ export type ApiOrder = {
   totalInPaise: number;
   trackingNumber: string | null;
   carrier: string | null;
+  shipment: ApiShipment;
   createdAt: string;
   items: { productId: string; name: string; slug: string; quantity: number; unitPriceInPaise: number }[];
 };
 
-export const statusLabel = (status: OrderStatus) => status.charAt(0) + status.slice(1).toLowerCase();
+const STATUS_LABELS: Partial<Record<OrderStatus, string>> = { RETURNING: "Returning to us", RETURNED: "Returned" };
+export const statusLabel = (status: OrderStatus) => STATUS_LABELS[status] ?? status.charAt(0) + status.slice(1).toLowerCase();
 export const ORDER_NUMBER_PATTERN = /^SU-\d{4}-[A-Z0-9]{10}$/;
 
 /** "Cash on delivery", "Cash on delivery · Paid", "Online · Paid" or "Online · Awaiting payment". */

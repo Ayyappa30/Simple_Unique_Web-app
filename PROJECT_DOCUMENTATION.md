@@ -119,6 +119,45 @@ Set these in `.env` to turn sending on; without them the server only logs `[emai
 
 Admins set the carrier and tracking number from the Orders table on `/admin`. Clearing both fields removes them.
 
+### Delivery with Shiprocket (courier booking, tracking, RTO and cash on delivery)
+
+Admins book the courier from the Orders table on `/admin`, and the order then updates itself as the parcel moves. The code is in `server/shipping/` (`shiprocket.ts` is the API client, `status.ts` maps courier statuses, `service.ts` runs the workflow).
+
+**The life of an order**
+
+| Step | Who | What happens |
+| --- | --- | --- |
+| Order placed | Customer | Saved as **Pending**. Online orders are **Paid** after Razorpay; COD stays unpaid. |
+| **Book courier** | Admin (one click) | Creates the order in Shiprocket, assigns a courier and tracking number (AWB), schedules the pickup and makes the shipping label. Status becomes **Processing**. Print the label (link in the Shipping column) and stick it on the parcel. |
+| Courier picks up | Automatic | Shiprocket tells us; status becomes **Shipped** and the customer gets the "on its way" email with a tracking link. |
+| In transit, out for delivery | Automatic | The timeline on the customer's order page updates. Status stays Shipped. |
+| Delivered | Automatic | Status becomes **Delivered**, the customer gets the delivery email. For **cash on delivery**, the payment is marked **Paid** and the collection time is saved. |
+| Undelivered, RTO | Automatic | "RTO initiated" becomes **Returning to us** (customer emailed). "RTO delivered" becomes **Returned**, the items go back into stock, and a prepaid order shows **Refund due** in admin. |
+| Cash reaches your bank | Admin | Press **Mark received in bank** on a delivered COD order (Shiprocket has no API for this, so it is a manual tick). |
+
+**Things the system guarantees**
+- Orders only move forward. A late or repeated message from the courier can never move a delivered order backwards, send a second email, or restock twice.
+- Booking saves each step as it succeeds. If one fails (for example an empty Shiprocket wallet), the order shows the reason and **Retry booking** carries on from that step without booking twice.
+- Cancelling a booked order calls the booking off in Shiprocket first. Once the courier has the parcel it cannot be cancelled; it is delivered or returned.
+- Customers see only the tracking timeline. The label, booking errors and cash details are admin-only.
+- Online orders that are not paid yet cannot be booked.
+
+**Setting it up**
+1. In Shiprocket, add your pickup address (Settings > Pickup Addresses) and keep money in the wallet (shipping is charged when the courier is assigned).
+2. Create an API user: Settings > API > Configure > Create API User. Use that email and password, not your normal login.
+3. Fill in `.env`: `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD` and `SHIPROCKET_PICKUP_LOCATION` (the pickup name exactly as Shiprocket shows it). Restart the server. Optional parcel size: `SHIPPING_WEIGHT_KG` (default 0.25), `SHIPPING_LENGTH_CM`, `SHIPPING_BREADTH_CM`, `SHIPPING_HEIGHT_CM`.
+4. On `/admin` press **Check shipping setup**. It confirms the login works and the pickup location exists, and lists the names Shiprocket knows.
+5. Automatic status updates need a public address (Shiprocket cannot reach `localhost`): in Shiprocket > Settings > API > Webhooks add the URL `https://<your-site>/api/v1/shipping/tracking-webhook`, enable it, and paste the value of `SHIPROCKET_WEBHOOK_TOKEN` as the security token (sent as the `x-api-key` header). Until then, press **Refresh** on an order or **Refresh all shipments**: they ask Shiprocket for the latest tracking and apply it the same way.
+
+**Routes**
+- `POST /api/v1/admin/orders/[id]/ship` books the courier. `POST /api/v1/admin/orders/[id]/refresh` refreshes one order. `POST /api/v1/admin/shipping/refresh` refreshes all parcels still on their way. `GET /api/v1/admin/shipping/status` checks the setup. All admin only.
+- `POST /api/v1/shipping/tracking-webhook` is called by Shiprocket (token checked, always answers 200 once authenticated).
+
+**Good to know**
+- For COD the courier collects the order's full amount payable (`sub_total` is sent as the total after shipping and discount, with shipping and discount sent as 0 so nothing is counted twice). Check the amount on your first real COD parcel in the Shiprocket dashboard.
+- Checkout's State field is a dropdown of states and union territories so couriers accept the address.
+- Not built yet: automatic Razorpay refunds for returned prepaid orders, handling "customer not available" (NDR) actions, and customer-initiated returns after delivery (Shiprocket has a Create Return Order API for that).
+
 ### Image uploads (Cloudinary)
 
 `POST /api/v1/admin/upload` (admin only, multipart `file`, JPG/PNG/WebP up to 5 MB) uploads to Cloudinary with a signed request and returns `{ data: { url } }`. The admin product form has an upload button that fills the image field. `productImageUrl()` serves Cloudinary URLs resized with `c_limit,w_<width>,q_auto,f_auto`. Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` in `.env` (the secret stays server-side).
@@ -255,7 +294,7 @@ npm run start
 - Configure PostgreSQL and add trigram/full-text indexing if catalog search volume requires it.
 - Implement customer sessions, registration/login, password hashing, OTP delivery, and authorization.
 - Protect admin routes and implement server-side catalog and order endpoints.
-- Add automatic refunds, then switch from `rzp_test_` to live keys after Razorpay approves the account.
+- Add automatic refunds (including for returned prepaid orders), then switch from `rzp_test_` to live keys after Razorpay approves the account.
 - Add SMS order notifications, saved customer addresses, shipping integrations, verified reviews, and a newsletter unsubscribe flow.
 - Add production rate limiting, monitoring, backups, and deployment configuration.
 

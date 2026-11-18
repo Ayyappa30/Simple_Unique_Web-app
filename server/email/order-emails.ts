@@ -1,7 +1,7 @@
 import type { OrderView } from "@/server/orders/repository";
 import { sendEmail, type Email } from "./send";
 
-export type OrderEmailKind = "placed" | "shipped" | "delivered" | "cancelled";
+export type OrderEmailKind = "placed" | "shipped" | "delivered" | "cancelled" | "returning" | "returned";
 
 const esc = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -20,6 +20,10 @@ function copy(kind: OrderEmailKind, order: OrderView) {
       return { subject: `Your order ${order.orderNumber} was delivered`, heading: "Delivered", body: `Hi ${first}, your order has been delivered. We hope you love it. Thank you for shopping with us.` };
     case "cancelled":
       return { subject: `Your order ${order.orderNumber} was cancelled`, heading: "Order cancelled", body: `Hi ${first}, your order has been cancelled. If this is a surprise, just reply to this email and we’ll help.` };
+    case "returning":
+      return { subject: `We couldn’t deliver order ${order.orderNumber}`, heading: "Your order is coming back to us", body: `Hi ${first}, the courier wasn’t able to deliver your order, so it is on its way back to us. If you’d like us to send it again, or if your address needs fixing, just reply to this email.` };
+    case "returned":
+      return { subject: `Order ${order.orderNumber} is back with us`, heading: "Your order came back to us", body: `Hi ${first}, your order has reached us after the courier couldn’t deliver it. ${order.paymentMethod === "cod" ? "You haven’t been charged anything." : "As you paid online, we’ll be in touch about your refund."} Reply to this email if you’d like us to send it again.` };
   }
 }
 
@@ -33,8 +37,9 @@ export function buildOrderEmail(kind: OrderEmailKind, order: OrderView): Email {
     + (order.discountInPaise ? `<tr><td style="padding:6px 0">Discount</td><td style="padding:6px 0;text-align:right">−${rupees(order.discountInPaise)}</td></tr>` : "")
     + `<tr><td style="padding:6px 0">Shipping</td><td style="padding:6px 0;text-align:right">${order.shippingInPaise ? rupees(order.shippingInPaise) : "Free"}</td></tr>`
     + `<tr><td style="padding:10px 0;border-top:1px solid #ddd"><strong>Total</strong></td><td style="padding:10px 0;border-top:1px solid #ddd;text-align:right"><strong>${rupees(order.totalInPaise)}</strong></td></tr>`;
+  const trackLink = order.shipment.trackUrl ? ` · <a href="${esc(order.shipment.trackUrl)}">Track your parcel</a>` : "";
   const trackingHtml = kind === "shipped" && order.trackingNumber
-    ? `<p style="margin:16px 0 0"><strong>Tracking:</strong> ${esc(order.carrier ? `${order.carrier} · ` : "")}${esc(order.trackingNumber)}</p>` : "";
+    ? `<p style="margin:16px 0 0"><strong>Tracking:</strong> ${esc(order.carrier ? `${order.carrier} · ` : "")}${esc(order.trackingNumber)}${trackLink}</p>` : "";
 
   const html = `<div style="font-family:Georgia,serif;background:#f8f6f2;padding:24px"><div style="max-width:520px;margin:auto;background:#fff;padding:32px">
 <p style="letter-spacing:.2em;font-size:12px;margin:0 0 20px">SIMPLE &amp; UNIQUE</p>
@@ -49,7 +54,7 @@ export function buildOrderEmail(kind: OrderEmailKind, order: OrderView): Email {
   const text = [heading, "", body, "", `Order ${order.orderNumber}`, ...lines.map((l) => `${l.label}  ${l.amount}`),
     ...(order.discountInPaise ? [`Discount  -${rupees(order.discountInPaise)}`] : []),
     `Shipping  ${order.shippingInPaise ? rupees(order.shippingInPaise) : "Free"}`, `Total  ${rupees(order.totalInPaise)}`, "",
-    `Delivering to: ${address}`, `View your order: ${link}`].join("\n");
+    `Delivering to: ${address}`, ...(kind === "shipped" && order.shipment.trackUrl ? [`Track your parcel: ${order.shipment.trackUrl}`] : []), `View your order: ${link}`].join("\n");
 
   return { to: order.customer.email, subject, html, text };
 }

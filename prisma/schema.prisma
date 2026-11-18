@@ -93,36 +93,69 @@ model Address {
 }
 
 model Order {
-  id                String        @id @default(cuid())
-  orderNumber       String        @unique
-  userId            String?
-  shippingAddressId String?
-  customerName      String
-  customerEmail     String
-  customerPhone     String
-  shipStreet        String        @default("")
-  shipCity          String        @default("")
-  shipState         String        @default("")
-  shipPincode       String        @default("")
-  subtotalInPaise   Int
-  discountInPaise   Int           @default(0)
-  shippingInPaise   Int           @default(0)
-  totalInPaise      Int
-  paymentMethod     String
-  paymentStatus     PaymentStatus @default(PENDING)
-  status            OrderStatus   @default(PENDING)
-  trackingNumber    String?
-  carrier           String?
-  razorpayOrderId   String?       @unique
-  razorpayPaymentId String?       @unique
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  user              User?         @relation(fields: [userId], references: [id])
-  shippingAddress   Address?      @relation(fields: [shippingAddressId], references: [id])
-  items             OrderItem[]
+  id                   String          @id @default(cuid())
+  orderNumber          String          @unique
+  userId               String?
+  shippingAddressId    String?
+  customerName         String
+  customerEmail        String
+  customerPhone        String
+  shipStreet           String          @default("")
+  shipCity             String          @default("")
+  shipState            String          @default("")
+  shipPincode          String          @default("")
+  subtotalInPaise      Int
+  discountInPaise      Int             @default(0)
+  shippingInPaise      Int             @default(0)
+  totalInPaise         Int
+  paymentMethod        String
+  paymentStatus        PaymentStatus   @default(PENDING)
+  status               OrderStatus     @default(PENDING)
+  trackingNumber       String?
+  carrier              String?
+  razorpayOrderId      String?         @unique
+  razorpayPaymentId    String?         @unique
+  // Courier booking (Shiprocket). trackingNumber / carrier above hold the AWB and courier name.
+  shiprocketOrderId    String?
+  shiprocketShipmentId String?
+  labelUrl             String?
+  trackUrl             String?
+  shipmentStatus       String?
+  shipmentStatusId     Int?
+  shipmentError        String?
+  shippedAt            DateTime?
+  deliveredAt          DateTime?
+  returnedAt           DateTime?
+  // Cash on delivery: collected by the courier at the door, then paid out to the bank account.
+  codCollectedAt       DateTime?
+  codRemittedAt        DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  user                 User?           @relation(fields: [userId], references: [id])
+  shippingAddress      Address?        @relation(fields: [shippingAddressId], references: [id])
+  items                OrderItem[]
+  shipmentEvents       ShipmentEvent[]
 
   @@index([status, createdAt])
   @@index([customerPhone])
+  @@index([trackingNumber])
+}
+
+/// One tracking scan from the courier, kept so customers and admins can see the journey. `fingerprint` makes re-delivered webhooks harmless.
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  orderId     String
+  fingerprint String
+  statusId    Int?
+  status      String
+  activity    String?
+  location    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, fingerprint])
+  @@index([orderId, occurredAt])
 }
 
 model OrderItem {
@@ -177,4 +210,6 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  RETURNING
+  RETURNED
 }

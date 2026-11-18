@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { formatPrice, type Product } from "@/features/catalog/products";
 import { paymentLabel, statusLabel, type ApiOrder, type OrderStatus } from "@/features/orders/order-types";
@@ -129,6 +129,58 @@ export default function AdminPage() {
       setOrderError("Could not reach the server. Try again.");
       return false;
     }
+  }
+
+  // Shipping actions (Shiprocket). Each returns the updated order, which replaces the row.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [shippingNote, setShippingNote] = useState("");
+  const [setup, setSetup] = useState<ShippingSetup | null>(null);
+
+  async function shippingAction(order: ApiOrder, path: string, body?: unknown) {
+    setOrderError("");
+    setBusyId(order.id);
+    try {
+      const response = await fetch(`/api/v1/admin/orders/${order.id}${path}`, {
+        method: path ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) setOrderError(`${order.orderNumber}: ${result.error ?? "That didn't work. Please try again."}`);
+      else setOrders((current) => current.map((item) => (item.id === order.id ? result.data : item)));
+    } catch {
+      setOrderError("Could not reach the server. Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+  const bookCourier = (order: ApiOrder) => shippingAction(order, "/ship");
+  const refreshShipment = (order: ApiOrder) => shippingAction(order, "/refresh");
+  const markCash = (order: ApiOrder, received: boolean) => shippingAction(order, "", { codRemitted: received });
+
+  async function refreshAll() {
+    setOrderError("");
+    setShippingNote("");
+    setBusyId("all");
+    try {
+      const response = await fetch("/api/v1/admin/shipping/refresh", { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { setOrderError(result.error ?? "Could not refresh the shipments."); return; }
+      const { checked, changed, failures } = result.data as { checked: number; changed: number; failures: string[] };
+      setShippingNote(`Checked ${checked} parcel${checked === 1 ? "" : "s"}; ${changed} changed.${failures.length ? ` ${failures.length} could not be checked: ${failures[0]}` : ""}`);
+      const list = await fetch("/api/v1/admin/orders", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (list?.data) setOrders(list.data);
+    } catch {
+      setOrderError("Could not reach the server. Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function checkSetup() {
+    setSetup(null);
+    const result = await fetch("/api/v1/admin/shipping/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    setSetup(result?.data ?? { configured: false, connected: false, pickupFound: false, pickupLocation: "", pickupLocations: [], webhookToken: false, problem: "Could not reach the server." });
   }
 
   async function changeStatus(order: ApiOrder, status: OrderStatus) {
@@ -475,6 +527,12 @@ export default function AdminPage() {
         </section>
         <section className="admin-section">
           <h2 className="serif">Orders</h2>
+          <div className="shipping-toolbar">
+            <button className="text-button" type="button" disabled={busyId === "all"} onClick={refreshAll}>{busyId === "all" ? "Checking…" : "Refresh all shipments"}</button>
+            <button className="text-button" type="button" onClick={checkSetup}>Check shipping setup</button>
+          </div>
+          {shippingNote && <p role="status"><small>{shippingNote}</small></p>}
+          {setup && <ShippingSetupPanel setup={setup} onClose={() => setSetup(null)} />}
           {orderError && (
             <p className="error-message" role="alert">
               {orderError}
@@ -490,12 +548,12 @@ export default function AdminPage() {
                     <th>Items</th>
                     <th>Total</th>
                     <th>Status</th>
-                    <th>Tracking</th>
+                    <th>Shipping</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((order) => {
-                    const closed = order.status === "CANCELLED" || order.status === "DELIVERED";
+                    const closed = order.status === "CANCELLED" || order.status === "DELIVERED" || order.status === "RETURNED";
                     return (
                       <tr key={order.id}>
                         <td>
@@ -518,6 +576,7 @@ export default function AdminPage() {
                         <td>
                           {formatPrice(order.totalInPaise / 100)}
                           <small>{paymentLabel(order)}</small>
+                          <CashNote order={order} busy={busyId === order.id} onMark={markCash} />
                         </td>
                         <td>
                           <select
@@ -526,7 +585,7 @@ export default function AdminPage() {
                             disabled={closed}
                             onChange={(event) => changeStatus(order, event.target.value as OrderStatus)}
                           >
-                            {(["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"] as const).map((status) => (
+                            {(["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNING", "RETURNED"] as const).map((status) => (
                               <option key={status} value={status}>
                                 {statusLabel(status)}
                               </option>
@@ -534,11 +593,13 @@ export default function AdminPage() {
                           </select>
                         </td>
                         <td>
-                          <TrackingForm
-                            key={`${order.id}:${order.trackingNumber ?? ""}:${order.carrier ?? ""}`}
-                            order={order}
-                            onSave={saveTracking}
-                          />
+                          <ShippingCell order={order} busy={busyId === order.id} onBook={bookCourier} onRefresh={refreshShipment}>
+                            <TrackingForm
+                              key={`${order.id}:${order.trackingNumber ?? ""}:${order.carrier ?? ""}`}
+                              order={order}
+                              onSave={saveTracking}
+                            />
+                          </ShippingCell>
                         </td>
                       </tr>
                     );
@@ -551,8 +612,9 @@ export default function AdminPage() {
           )}
           <p>
             <small>
-              Customers are emailed when an order is placed, shipped, delivered or cancelled, and again when a
-              tracking number is added to a shipped order.
+              Customers are emailed when an order is placed, shipped, delivered, cancelled, or when a parcel can&apos;t be
+              delivered and comes back. With Shiprocket set up, “Book courier” does the booking and the status updates
+              by itself as the parcel moves.
             </small>
           </p>
         </section>
@@ -603,4 +665,83 @@ function TrackingForm({
       </button>
     </form>
   );
+}
+
+type ShippingSetup = { configured: boolean; connected: boolean; pickupFound: boolean; pickupLocation: string; pickupLocations: string[]; webhookToken: boolean; problem: string | null };
+
+function ShippingSetupPanel({ setup, onClose }: { setup: ShippingSetup; onClose: () => void }) {
+  const row = (ok: boolean, label: string) => <li>{ok ? "✓" : "✗"} {label}</li>;
+  return (
+    <div className="shipping-setup" role="status">
+      <ul>
+        {row(setup.configured, "Shiprocket login and pickup location are set in .env")}
+        {row(setup.connected, "Connected to Shiprocket")}
+        {row(setup.pickupFound, `Pickup location “${setup.pickupLocation || "—"}” exists in Shiprocket`)}
+        {row(setup.webhookToken, "Tracking webhook secret is set (needed for automatic status updates)")}
+      </ul>
+      {setup.problem && <p className="error-message">{setup.problem}</p>}
+      {setup.pickupLocations.length > 0 && <p><small>Pickup locations in your Shiprocket account: {setup.pickupLocations.join(", ")}</small></p>}
+      <button className="text-button" type="button" onClick={onClose}>Close</button>
+    </div>
+  );
+}
+
+/** Courier booking and live status for one order. Falls back to typing a tracking number by hand. */
+function ShippingCell({ order, busy, onBook, onRefresh, children }: { order: ApiOrder; busy: boolean; onBook: (order: ApiOrder) => void; onRefresh: (order: ApiOrder) => void; children: ReactNode }) {
+  const booked = order.shipment.admin?.booked ?? false;
+  const waitingForPayment = order.paymentMethod === "razorpay" && order.paymentStatus !== "PAID";
+  const canBook = (order.status === "PENDING" || order.status === "PROCESSING") && !waitingForPayment;
+  const error = order.shipment.admin?.error;
+  return (
+    <div className="shipping-cell">
+      {booked && (
+        <>
+          <strong>{order.carrier ?? "Courier"}</strong>
+          {order.trackingNumber && <small>AWB {order.trackingNumber}</small>}
+          <small>{order.shipment.status ? `Status: ${order.shipment.status.toLowerCase()}` : "Booked"}</small>
+          <span className="shipping-links">
+            {order.shipment.admin?.labelUrl && <a href={order.shipment.admin.labelUrl} target="_blank" rel="noopener noreferrer">Label</a>}
+            {order.shipment.trackUrl && <a href={order.shipment.trackUrl} target="_blank" rel="noopener noreferrer">Track</a>}
+            {order.status !== "CANCELLED" && order.status !== "DELIVERED" && order.status !== "RETURNED" && (
+              <button className="text-button" type="button" disabled={busy} onClick={() => onRefresh(order)}>{busy ? "Checking…" : "Refresh"}</button>
+            )}
+          </span>
+        </>
+      )}
+      {error && <small className="form-error">{error}</small>}
+      {canBook && (
+        <button className="text-button" type="button" disabled={busy} onClick={() => onBook(order)}>
+          {busy ? "Booking…" : booked || error ? "Retry booking" : "Book courier"}
+        </button>
+      )}
+      {!booked && (
+        <details className="manual-tracking">
+          <summary>Enter tracking by hand</summary>
+          {children}
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** Cash-on-delivery money trail and the "refund due" reminder for parcels that came back after an online payment. */
+function CashNote({ order, busy, onMark }: { order: ApiOrder; busy: boolean; onMark: (order: ApiOrder, received: boolean) => void }) {
+  const admin = order.shipment.admin;
+  if (order.paymentMethod === "cod" && admin?.codCollectedAt) {
+    return admin.codRemittedAt ? (
+      <small>
+        Cash received in bank {new Date(admin.codRemittedAt).toLocaleDateString("en-IN")}{" "}
+        <button className="text-button" type="button" disabled={busy} onClick={() => onMark(order, false)}>Undo</button>
+      </small>
+    ) : (
+      <small>
+        Cash collected by courier{" "}
+        <button className="text-button" type="button" disabled={busy} onClick={() => onMark(order, true)}>Mark received in bank</button>
+      </small>
+    );
+  }
+  if (order.status === "RETURNED" && order.paymentMethod !== "cod" && order.paymentStatus === "PAID") {
+    return <small className="form-error">Came back undelivered. Refund due in Razorpay.</small>;
+  }
+  return null;
 }

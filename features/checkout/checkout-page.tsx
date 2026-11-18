@@ -9,6 +9,7 @@ import { payWithRazorpay, type PaymentParams } from "@/features/checkout/razorpa
 import type { ApiOrder } from "@/features/orders/order-types";
 import { formatPrice } from "@/features/catalog/products";
 import { SiteHeader } from "@/features/storefront/site-header";
+import { INDIAN_STATES } from "@/server/orders/indian-states";
 import { useShopDispatch, useShopSelector } from "@/store/provider";
 
 const checkoutSchema = z.object({
@@ -17,7 +18,7 @@ const checkoutSchema = z.object({
   email: z.string().email("Enter a valid email address"),
   address: z.string().trim().min(8, "Enter your complete street address"),
   city: z.string().trim().min(2, "Enter your city"),
-  state: z.string().trim().min(2, "Enter your state"),
+  state: z.enum(INDIAN_STATES, { message: "Choose your state" }),
   pincode: z.string().regex(/^[1-9][0-9]{5}$/, "Enter a valid 6-digit PIN code"),
 });
 type CheckoutField = keyof z.infer<typeof checkoutSchema>;
@@ -104,10 +105,14 @@ export function CheckoutPage({ coupon }: { coupon: string }) {
   if (!cart.length) return <><SiteHeader/><main className="empty-state"><h1 className="serif">Your bag is empty.</h1><Link href="/shop" className="button dark">Continue shopping</Link></main></>;
 
   return <><SiteHeader/><main className="section checkout-layout"><div><span className="eyebrow">Almost yours</span><h1 className="serif">Delivery details</h1><form className="checkout-form" onSubmit={submit} noValidate>
-    <div className="form-grid"><Field name="name" label="Full name" error={errors.name}/><Field name="phone" label="Mobile number" inputMode="numeric" error={errors.phone}/><Field name="email" label="Email address" type="email" error={errors.email}/><Field name="pincode" label="PIN code" inputMode="numeric" error={errors.pincode}/><Field name="address" label="Street address" className="span-two" error={errors.address}/><Field name="city" label="City" error={errors.city}/><Field name="state" label="State" error={errors.state}/></div>
+    <div className="form-grid"><Field name="name" label="Full name" error={errors.name}/><Field name="phone" label="Mobile number" inputMode="numeric" error={errors.phone}/><Field name="email" label="Email address" type="email" error={errors.email}/><Field name="pincode" label="PIN code" inputMode="numeric" error={errors.pincode}/><Field name="address" label="Street address" className="span-two" error={errors.address}/><Field name="city" label="City" error={errors.city}/><StateField error={errors.state}/></div>
     <div className="payment-choice"><span className="eyebrow">Payment method</span><label><input type="radio" name="payment" checked={method === "razorpay"} onChange={() => setMethod("razorpay")}/> Pay online <small>UPI, cards, net banking and wallets via Razorpay</small></label><label><input type="radio" name="payment" checked={method === "cod"} onChange={() => setMethod("cod")}/> Cash on delivery <small>Pay when your order arrives</small></label></div>
     {inventoryError && <p className="form-error" role="alert">{inventoryError}</p>}{paymentNote && <p role="status">{paymentNote}</p>}<button className="button dark" disabled={submitting} type="submit">{submitting ? (method === "razorpay" ? "Opening payment…" : "Placing order…") : method === "razorpay" ? `Pay ${formatPrice(total)}` : `Place order · ${formatPrice(total)}`}</button>
   </form></div><aside className="order-summary"><h2 className="serif">Your order</h2>{cart.map((line) => { const p = products.find((item) => item.id === line.productId); return p ? <div className="summary-line" key={p.id}><span>{p.name} × {line.quantity}</span><span>{formatPrice(p.price * line.quantity)}</span></div> : null; })}<div className="summary-line"><span>Shipping</span><span>{shipping ? formatPrice(shipping) : "Free"}</span></div>{safeDiscount > 0 && <div className="summary-line"><span>Discount</span><span>−{formatPrice(safeDiscount)}</span></div>}<div className="summary-total"><strong>Total</strong><strong>{formatPrice(total)}</strong></div><p className="summary-note">By placing your order, you agree to our shipping and return policy.</p></aside></main></>;
+}
+
+function StateField({ error }: { error?: string }) {
+  return <label className="form-field"><span>State</span><select name="state" defaultValue="" autoComplete="address-level1"><option value="" disabled>Choose your state</option>{INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}</select>{error && <small className="form-error">{error}</small>}</label>;
 }
 
 function Field({ name, label, error, type = "text", inputMode, className = "" }: { name: CheckoutField; label: string; error?: string; type?: string; inputMode?: "numeric"; className?: string }) {

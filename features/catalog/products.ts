@@ -39,5 +39,18 @@ export const productImageUrl = (id: string, width = 760) => {
   return `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=82`;
 };
 
+// Search: every word typed must appear somewhere in the piece's name, category, material, tag or description.
+// "rings" matches "ring", and punctuation is ignored, so "anti tarnish" finds "Anti-Tarnish".
+const searchWords = (text: string) =>
+  text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean)
+    .map((word) => (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word));
+
+export const matchesSearch = (product: Product, query: string) => {
+  const words = searchWords(query);
+  if (words.length === 0) return true;
+  const haystack = ` ${[product.name, product.category, product.material, product.tag, product.description].join(" ").toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+  return words.every((word) => haystack.includes(word));
+};
+
 export const formatPrice = (amount: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);

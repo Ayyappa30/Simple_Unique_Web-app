@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Jost } from "next/font/google";
+import { Jost } from "next/font/google";
 import "./globals.css";
 import { Copyright } from "@/features/site/copyright";
 import { SiteFooter } from "@/features/site/site-footer";
 import { StoreProvider } from "@/store/provider";
+import { Toaster } from "@/features/site/toast";
 
-// Display serif for headings, prices and the wordmark; light geometric sans for body text.
-const display = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-display",
-  display: "swap",
-});
+// Jost is a free, Futura-style geometric sans (the look Lovisa uses). One family for the whole store.
 const body = Jost({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
@@ -27,8 +21,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body><StoreProvider>{children}</StoreProvider><SiteFooter copyright={<Copyright />} /></body>
+    <html lang="en" className={body.variable}>
+      <body><StoreProvider>{children}</StoreProvider><SiteFooter copyright={<Copyright />} /><Toaster /></body>
     </html>
   );
 }
