@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { showToast } from "@/features/site/toast";
 import { useState, type FormEvent } from "react";
 
 export function NewsletterForm() {
@@ -24,6 +25,7 @@ export function NewsletterForm() {
       form.reset();
       setState("done");
       setMessage("Thank you. You're on the list.");
+      showToast("You're subscribed. Thank you!");
     } catch {
       setState("error");
       setMessage("We couldn't reach the server. Please try again.");

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Copyright } from "@/features/site/copyright";
 import { SiteFooter } from "@/features/site/site-footer";
 import { StoreProvider } from "@/store/provider";
+import { Toaster } from "@/features/site/toast";
 
 // Jost is a free, Futura-style geometric sans (the look Lovisa uses). One family for the whole store.
 const body = Jost({
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={body.variable}>
-      <body><StoreProvider>{children}</StoreProvider><SiteFooter copyright={<Copyright />} /></body>
+      <body><StoreProvider>{children}</StoreProvider><SiteFooter copyright={<Copyright />} /><Toaster /></body>
     </html>
   );
 }
